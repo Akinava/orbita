@@ -3,7 +3,7 @@
 // app/profile.py and /auth/name in app/auth.py.
 import { t, setText, setLang, getLang } from './i18n.js';
 import { music, musicButton } from './music.js';
-import { donateBar } from './donate.js';
+import { linksBar } from './links.js';
 
 const $ = (sel) => document.querySelector(sel);
 const params = new URLSearchParams(location.search);
@@ -172,4 +172,4 @@ for (const b of document.querySelectorAll('[data-lang]')) {
 load();
 music.play('profile');
 musicButton();
-donateBar();
+linksBar();

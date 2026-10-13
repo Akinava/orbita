@@ -3,7 +3,7 @@
 // place when they are not in the top. Server side: /api/leaders in app/profile.py.
 import { t, setText, setLang, getLang } from './i18n.js';
 import { music, musicButton } from './music.js';
-import { donateBar } from './donate.js';
+import { linksBar } from './links.js';
 
 const $ = (sel) => document.querySelector(sel);
 const status = $('#status');
@@ -119,4 +119,4 @@ for (const b of document.querySelectorAll('[data-lang]')) {
 load();
 music.play('profile');
 musicButton();
-donateBar();
+linksBar();

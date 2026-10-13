@@ -14,7 +14,7 @@ import { RemotePlayers } from './remote.js';
 import { Voice } from './voice.js';
 import { TouchControls, isTouchDevice } from './touch.js';
 import { music, musicButton } from './music.js';
-import { donateBar } from './donate.js';
+import { linksBar } from './links.js';
 import { onVolume, volumeSliders } from './volume.js';
 
 const MAX_SPEED = 320;
@@ -441,8 +441,8 @@ const voice = new Voice(net);
 // button shows in the menu only (index.html hides it while playing).
 music.play('profile');
 musicButton();
-// Donation links under the menu (index.html hides them while playing)
-donateBar(document.getElementById('overlay'));
+// Donation and contact links under the menu (index.html hides them while playing)
+linksBar(document.getElementById('overlay'));
 
 // Volume: the game's sounds, music and other pilots' voices (js/volume.js). Sliders in the menu, and the
 // same in the settings panel over the game that the ⚙ button or M opens without stopping the flight
