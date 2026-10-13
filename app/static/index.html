@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#000000">
+  <title>Orbita — VR space sim</title>
+  <style>
+    :root { --fg: #bfefff; --accent: #28d7ff; --bg: rgba(2, 10, 18, 0.88); }
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: system-ui, sans-serif; color: var(--fg); }
+    #app canvas { display: block; }
+    #overlay {
+      position: fixed; inset: 0; display: flex;
+      background: radial-gradient(ellipse at center, rgba(0,0,0,0.35), rgba(0,0,0,0.85));
+      padding: 16px; box-sizing: border-box; overflow-y: auto;
+    }
+    #overlay.hidden { display: none; }
+    .panel {
+      max-width: 760px; width: 100%; margin: auto; box-sizing: border-box; background: var(--bg); border: 1px solid #1d5a6c; border-radius: 12px;
+      padding: 24px 28px; box-shadow: 0 0 40px rgba(40, 215, 255, 0.15);
+    }
+    .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .lang { display: flex; gap: 4px; }
+    .lang button { font-size: 14px; padding: 6px 10px; background: transparent; opacity: 0.6; }
+    .lang button.active { background: #07303d; opacity: 1; }
+    h1 { margin: 0; letter-spacing: 0.4em; color: var(--accent); font-weight: 800; font-size: 40px; }
+    .sub { margin: 4px 0 20px; opacity: 0.8; }
+    .buttons { display: flex; gap: 12px; flex-wrap: wrap; }
+    button {
+      font: inherit; font-weight: 700; font-size: 18px; padding: 12px 22px; border-radius: 8px; cursor: pointer;
+      border: 1px solid var(--accent); background: #07303d; color: #e8fbff;
+    }
+    button:hover:not(:disabled) { background: #0b4a5e; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    #pilot-name, #map-select, #mode-select {
+      font: inherit; font-size: 18px; padding: 12px 14px; border-radius: 8px; min-width: 0; flex: 1 1 160px;
+      border: 1px solid #1d5a6c; background: #041a22; color: #e8fbff;
+    }
+    #map-select { flex: 1 1 230px; }
+    #mode-select { flex: 1 1 160px; }
+    .map-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+    .map-link { margin: 10px 0 0; font-size: 15px; }
+    .map-link a { color: var(--accent); font-weight: 600; word-break: break-all; }
+    .map-link button { font-size: 14px; padding: 4px 10px; margin-left: 6px; }
+    /* Info panel at the top centre while playing (js/info.js); on team maps between rounds the
+       "Ready" and "Change team" buttons below it */
+    #info {
+      display: none; position: fixed; z-index: 6; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+      flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
+    }
+    body.playing.on-map #info { display: flex; }
+    #info canvas { width: min(480px, calc(100vw - 140px)); height: auto; opacity: 0.85; border-radius: 6px; }
+    body.touch #info canvas { width: min(260px, calc(100vw - 140px)); opacity: 0.7; }
+    #match-buttons { display: none; gap: 8px; pointer-events: auto; }
+    body.team-lobby #match-buttons { display: flex; }
+    #match-buttons button { font-size: 15px; padding: 6px 14px; }
+    #match-ready.on { background: #1d6b3a; border-color: #6dff9a; }
+    .check { display: flex; align-items: center; gap: 8px; font-size: 16px; cursor: pointer; white-space: nowrap; }
+    .check input { width: 20px; height: 20px; accent-color: var(--accent); }
+    .note { min-height: 1.2em; color: #ffb36b; font-size: 14px; }
+    .account { margin: 12px 0 0; font-size: 15px; }
+    .volumes {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 6px 18px;
+      margin: 14px 0 0; padding: 8px 12px 10px; border: 1px solid #1d5a6c; border-radius: 8px;
+    }
+    .volumes legend { padding: 0 6px; font-size: 13px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.1em; }
+    .volumes label { display: grid; grid-template-columns: 4.5em 1fr 3em; align-items: center; gap: 8px; font-size: 14px; }
+    .volumes input { width: 100%; min-width: 0; accent-color: var(--accent); }
+    .volumes output { text-align: right; font-variant-numeric: tabular-nums; opacity: 0.85; }
+    .account a { color: var(--accent); font-weight: 600; }
+    /* A signed-in pilot's name: not an input but a label leading to the profile, where it is changed */
+    .pilot-badge {
+      display: inline-flex; align-items: center; gap: 8px; padding: 12px 4px; font-size: 18px; font-weight: 700;
+      color: #e8fbff; text-decoration: none; white-space: nowrap;
+    }
+    .pilot-badge .edit { font-size: 14px; font-weight: 400; color: var(--accent); opacity: 0.8; }
+    .pilot-badge:hover .edit { opacity: 1; text-decoration: underline; }
+    body.playing #music-btn, body.playing #donate { display: none !important; }
+    /* Settings panel in flight: the ⚙ button (or M) opens the menu's voice chat and inversion switches
+       and its volume sliders */
+    #settings-btn {
+      display: none; position: fixed; z-index: 7; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right));
+      width: 46px; height: 46px; padding: 0; border-radius: 50%; font-size: 20px; line-height: 1;
+      background: rgba(7, 48, 61, 0.55); border: 2px solid rgba(40, 215, 255, 0.7);
+    }
+    body.playing #settings-btn { display: block; }
+    #play-settings {
+      position: fixed; z-index: 7; top: calc(max(10px, env(safe-area-inset-top)) + 54px); right: max(12px, env(safe-area-inset-right));
+      width: min(280px, calc(100vw - 24px)); box-sizing: border-box; margin: 0; background: var(--bg);
+      grid-template-columns: 1fr; box-shadow: 0 0 24px rgba(40, 215, 255, 0.15);
+    }
+    body:not(.playing) #play-settings { display: none; }
+    #play-settings label.check { display: flex; font-size: 15px; white-space: normal; }
+    #play-settings input[type=checkbox] { width: 20px; height: 20px; flex: none; }
+    .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 8px; }
+    .controls h3 { margin: 0 0 6px; color: var(--accent); font-size: 15px; text-transform: uppercase; letter-spacing: 0.1em; }
+    .controls table { border-collapse: collapse; font-size: 14px; width: 100%; }
+    .controls td { padding: 3px 6px 3px 0; vertical-align: top; }
+    .controls td:first-child { color: #fff; white-space: nowrap; font-weight: 600; }
+    .goal { font-size: 14px; opacity: 0.85; margin-top: 16px; line-height: 1.5; }
+    #loading {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: #000; color: var(--accent); font-size: 20px; letter-spacing: 0.2em; z-index: 10;
+    }
+    #loading.hidden { display: none; }
+
+    /* Phones and tablets (body.touch, see js/touch.js) */
+    body:not(.touch) .touch-only, body.touch .no-touch, .hidden { display: none !important; }
+    body.touch { overscroll-behavior: none; }
+    body.touch #app, #touch { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+    @media (max-width: 640px), (max-height: 500px) {
+      .panel { padding: 16px; }
+      h1 { font-size: 28px; letter-spacing: 0.3em; }
+      .sub { margin-bottom: 12px; }
+      .buttons { gap: 8px; }
+      button, #pilot-name, #map-select, #mode-select { font-size: 16px; } /* 16px keeps iOS from zooming into inputs */
+    }
+    #touch { position: fixed; inset: 0; pointer-events: none; z-index: 5; color: #e8fbff; }
+    #touch > * { pointer-events: auto; }
+    .t-btn {
+      display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%;
+      background: rgba(7, 48, 61, 0.45); border: 2px solid rgba(40, 215, 255, 0.7); color: #e8fbff;
+      font-size: 13px; font-weight: 800; letter-spacing: 0.05em; -webkit-tap-highlight-color: transparent;
+    }
+    .t-btn:hover:not(:disabled) { background: rgba(7, 48, 61, 0.45); }
+    .t-btn.pressed { background: rgba(40, 215, 255, 0.55); }
+    .t-small { width: 46px; height: 46px; font-size: 20px; }
+    .t-fire { width: 82px; height: 82px; font-size: 16px; border-color: rgba(255, 90, 80, 0.85); background: rgba(90, 10, 10, 0.4); }
+    .t-fire:hover:not(:disabled) { background: rgba(90, 10, 10, 0.4); }
+    .t-fire.pressed { background: rgba(255, 70, 60, 0.6); }
+    .t-boost { width: 58px; height: 58px; font-size: 11px; }
+    .t-stop { font-size: 10px; }
+    .t-mic.on { background: rgba(60, 220, 110, 0.55); border-color: #6dff9a; }
+    .t-top {
+      position: absolute; top: max(10px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left));
+      display: flex; gap: 10px;
+    }
+    .t-stick-zone {
+      position: absolute; left: 0; bottom: 0; width: 42%; top: 72px;
+    }
+    .t-stick-base {
+      position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%;
+      border: 2px solid rgba(40, 215, 255, 0.45); background: rgba(7, 48, 61, 0.25); opacity: 0;
+      left: 120px; bottom: 60px; transition: opacity 0.15s;
+    }
+    .t-stick-base.active { opacity: 1; }
+    .t-stick-knob {
+      position: absolute; left: 34px; top: 34px; width: 52px; height: 52px; border-radius: 50%;
+      background: rgba(40, 215, 255, 0.55); border: 2px solid #9ff3ff;
+    }
+    .t-stick-hint {
+      position: absolute; left: max(24px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom));
+      font-size: 13px; opacity: 0.55; max-width: 160px; pointer-events: none;
+    }
+    .t-stick-zone.used .t-stick-hint { display: none; }
+    .t-right {
+      position: absolute; right: max(12px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom));
+      display: flex; align-items: flex-end; gap: 14px;
+    }
+    .t-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .t-throttle {
+      position: relative; width: 46px; height: min(44vh, 220px); border-radius: 10px; overflow: hidden;
+      border: 2px solid rgba(40, 215, 255, 0.7); background: rgba(7, 48, 61, 0.35);
+    }
+    .t-throttle-fill { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(40, 215, 255, 0.45); }
+    .t-throttle-label { position: absolute; left: 0; right: 0; top: 6px; text-align: center; font-size: 12px; font-weight: 800; }
+    #rotate-hint {
+      display: none; position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 6;
+      padding: 8px 14px; border-radius: 8px; background: var(--bg); border: 1px solid #1d5a6c;
+      font-size: 14px; white-space: nowrap; pointer-events: none;
+    }
+    @media (orientation: portrait) { body.touch.playing #rotate-hint { display: block; } }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="overlay">
+    <div class="panel">
+      <div class="head">
+        <h1 data-i18n="menu.title">ORBITA</h1>
+        <div class="lang" role="group" aria-label="Language">
+          <button data-lang="en">EN</button>
+          <button data-lang="ru">RU</button>
+        </div>
+      </div>
+      <p class="sub" data-i18n="menu.subtitle"></p>
+      <div class="buttons">
+        <button id="vr-btn" data-i18n="menu.vrChecking" disabled></button>
+        <button id="desk-btn" class="no-touch" data-i18n="menu.play"></button>
+        <button id="touch-btn" class="touch-only" data-i18n="menu.playTouch"></button>
+        <input id="pilot-name" maxlength="16" autocomplete="nickname" data-i18n-placeholder="menu.namePlaceholder">
+        <a id="pilot-badge" class="pilot-badge hidden" href="/profile.html" data-i18n-title="menu.nameLocked"><span>👤</span><span id="pilot-badge-name"></span><span class="edit" data-i18n="menu.nameEdit"></span></a>
+        <label class="check"><input type="checkbox" id="voice-toggle" checked> <span data-i18n="menu.voice"></span></label>
+        <label class="check" data-i18n-title="menu.invertHint"><input type="checkbox" id="invert-pitch"> <span data-i18n="menu.invert"></span></label>
+      </div>
+      <div class="map-row">
+        <select id="mode-select" data-i18n-title="menu.mode">
+          <option value="farm" data-i18n="info.mode.farm"></option>
+          <option value="pvp" data-i18n="info.mode.pvp"></option>
+          <option value="team" data-i18n="info.mode.team"></option>
+          <option value="station" data-i18n="info.mode.station"></option>
+        </select>
+        <select id="map-select"></select>
+        <label class="check" id="map-private-row"><input type="checkbox" id="map-private"> <span data-i18n="menu.private"></span></label>
+      </div>
+      <p id="map-link-row" class="map-link hidden"><span id="map-link-text"></span> <a id="map-link" data-i18n="menu.linkOpen"></a><button id="map-link-copy" data-i18n="menu.linkCopy"></button></p>
+      <fieldset class="volumes" id="menu-volumes">
+        <legend data-i18n="menu.volume"></legend>
+      </fieldset>
+      <p id="account" class="account hidden"><span id="account-name"></span> <a id="account-link" href="/login.html"></a> · <a href="/leaders.html" data-i18n="menu.leaders"></a><span id="logout-item" class="hidden"> · <a id="logout-link" href="/login.html" data-i18n="auth.logout"></a></span></p>
+      <p id="menu-note" class="note"></p>
+      <p id="vr-note" class="note"></p>
+      <div class="controls">
+        <div class="touch-only">
+          <h3 data-i18n="ctl.touch"></h3>
+          <table>
+            <tr><td data-i18n="ctl.touch.stick"></td><td data-i18n="ctl.touch.stick.do"></td></tr>
+            <tr><td data-i18n="ctl.touch.slider"></td><td data-i18n="ctl.touch.slider.do"></td></tr>
+            <tr><td data-i18n="ctl.touch.buttons"></td><td data-i18n="ctl.touch.buttons.do"></td></tr>
+            <tr><td data-i18n="ctl.touch.drag"></td><td data-i18n="ctl.touch.drag.do"></td></tr>
+            <tr><td>☰ / ◎ / 🔇</td><td data-i18n="ctl.touch.top.do"></td></tr>
+            <tr><td>⚙</td><td data-i18n="ctl.touch.settings.do"></td></tr>
+          </table>
+        </div>
+        <div class="no-touch">
+          <h3 data-i18n="ctl.vr"></h3>
+          <table>
+            <tr><td data-i18n="ctl.vr.rstick"></td><td data-i18n="ctl.vr.rstick.do"></td></tr>
+            <tr><td data-i18n="ctl.vr.lstick"></td><td data-i18n="ctl.vr.lstick.do"></td></tr>
+            <tr><td data-i18n="ctl.vr.rtrigger"></td><td data-i18n="ctl.vr.rtrigger.do"></td></tr>
+            <tr><td data-i18n="ctl.vr.ltrigger"></td><td data-i18n="ctl.vr.ltrigger.do"></td></tr>
+            <tr><td>X</td><td data-i18n="ctl.vr.x.do"></td></tr>
+            <tr><td>A</td><td data-i18n="ctl.vr.a.do"></td></tr>
+            <tr><td>Y</td><td data-i18n="ctl.vr.y.do"></td></tr>
+            <tr><td data-i18n="ctl.vr.lstick"></td><td data-i18n="ctl.vr.ls.do"></td></tr>
+            <tr><td>B</td><td data-i18n="ctl.vr.b.do"></td></tr>
+            <tr><td data-i18n="ctl.vr.rstick"></td><td data-i18n="ctl.vr.rs.do"></td></tr>
+          </table>
+        </div>
+        <div class="no-touch">
+          <h3 data-i18n="ctl.kb"></h3>
+          <table>
+            <tr><td>W / S</td><td data-i18n="ctl.kb.ws.do"></td></tr>
+            <tr><td>↑ / ↓</td><td data-i18n="ctl.kb.updown.do"></td></tr>
+            <tr><td>← → / Q E</td><td data-i18n="ctl.kb.roll.do"></td></tr>
+            <tr><td>A / D</td><td data-i18n="ctl.kb.ad.do"></td></tr>
+            <tr><td data-i18n="ctl.kb.space"></td><td data-i18n="ctl.kb.space.do"></td></tr>
+            <tr><td>X / R / Esc</td><td data-i18n="ctl.kb.xre.do"></td></tr>
+            <tr><td>V</td><td data-i18n="ctl.kb.v.do"></td></tr>
+            <tr><td>M</td><td data-i18n="ctl.kb.m.do"></td></tr>
+            <tr><td>G / T</td><td data-i18n="ctl.kb.gt.do"></td></tr>
+            <tr><td data-i18n="ctl.kb.mouse"></td><td data-i18n="ctl.kb.mouse.do"></td></tr>
+          </table>
+        </div>
+        <div class="no-touch">
+          <h3 data-i18n="ctl.joy"></h3>
+          <table>
+            <tr><td data-i18n="ctl.joy.stick"></td><td data-i18n="ctl.joy.stick.do"></td></tr>
+            <tr><td data-i18n="ctl.joy.twist"></td><td data-i18n="ctl.joy.twist.do"></td></tr>
+            <tr><td data-i18n="ctl.joy.lever"></td><td data-i18n="ctl.joy.lever.do"></td></tr>
+            <tr><td data-i18n="ctl.joy.trigger"></td><td data-i18n="ctl.joy.trigger.do"></td></tr>
+            <tr><td>2 / 3 / 4</td><td data-i18n="ctl.joy.btn.do"></td></tr>
+            <tr><td>5</td><td data-i18n="ctl.joy.b5.do"></td></tr>
+          </table>
+        </div>
+      </div>
+      <p class="goal" data-i18n="menu.goal"></p>
+    </div>
+  </div>
+
+  <div id="info">
+    <div id="match-buttons">
+      <button id="match-ready" data-i18n="match.ready"></button>
+      <button id="match-team" data-i18n="match.team" data-i18n-title="match.teamHint"></button>
+    </div>
+  </div>
+
+  <button id="settings-btn" data-i18n-title="menu.settingsOpen">⚙</button>
+  <fieldset class="volumes hidden" id="play-settings">
+    <legend data-i18n="menu.settings"></legend>
+    <label class="check"><input type="checkbox" id="play-voice"> <span data-i18n="menu.voice"></span></label>
+    <label class="check" data-i18n-title="menu.invertHint"><input type="checkbox" id="play-invert"> <span data-i18n="menu.invert"></span></label>
+  </fieldset>
+
+  <div id="rotate-hint" data-i18n="touch.rotate"></div>
+
+  <div id="loading" data-i18n="menu.loading">GENERATING GALAXY…</div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

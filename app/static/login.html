@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="referrer" content="no-referrer"><!-- the password reset link carries its token in the URL -->
+  <title>Orbita — sign in</title>
+  <style>
+    :root { --fg: #bfefff; --accent: #28d7ff; --bg: rgba(2, 10, 18, 0.92); --warn: #ffb36b; --ok: #7dff9a; }
+    html, body { margin: 0; min-height: 100%; font-family: system-ui, sans-serif; color: var(--fg); }
+    body {
+      display: flex; padding: 16px; box-sizing: border-box; min-height: 100vh; min-height: 100dvh;
+      background: radial-gradient(ellipse at 30% 20%, #0b2a3a 0%, #02060c 55%, #000 100%);
+    }
+    .panel {
+      margin: auto; width: 100%; max-width: 440px; box-sizing: border-box; background: var(--bg);
+      border: 1px solid #1d5a6c; border-radius: 12px; padding: 24px; box-shadow: 0 0 40px rgba(40, 215, 255, 0.15);
+    }
+    .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    h1 { margin: 0; letter-spacing: 0.35em; color: var(--accent); font-weight: 800; font-size: 30px; }
+    h1 a { color: inherit; text-decoration: none; }
+    .lang { display: flex; gap: 4px; }
+    button, .btn {
+      font: inherit; font-weight: 700; font-size: 16px; padding: 12px 18px; border-radius: 8px; cursor: pointer;
+      border: 1px solid var(--accent); background: #07303d; color: #e8fbff; text-decoration: none; text-align: center;
+      box-sizing: border-box;
+    }
+    button:hover:not(:disabled), .btn:hover { background: #0b4a5e; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .lang button { font-size: 13px; padding: 6px 10px; background: transparent; opacity: 0.6; }
+    .lang button.active { background: #07303d; opacity: 1; }
+    .tabs { display: flex; margin-bottom: 18px; border-bottom: 1px solid #1d5a6c; }
+    .tabs button {
+      flex: 1; border: 0; border-radius: 0; background: transparent; opacity: 0.6; padding: 10px;
+      border-bottom: 2px solid transparent;
+    }
+    .tabs button:hover:not(:disabled) { background: transparent; opacity: 0.9; }
+    .tabs button.active { opacity: 1; border-bottom-color: var(--accent); color: var(--accent); }
+    .providers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .providers button { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; background: #041a22; border-color: #1d5a6c; }
+    .providers svg { width: 18px; height: 18px; flex: none; }
+    .or { display: flex; align-items: center; gap: 10px; margin: 18px 0; font-size: 13px; opacity: 0.6; }
+    .or::before, .or::after { content: ""; flex: 1; border-top: 1px solid #1d5a6c; }
+    form { display: flex; flex-direction: column; gap: 12px; }
+    label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+    input {
+      font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 8px;
+      border: 1px solid #1d5a6c; background: #041a22; color: #e8fbff;
+    }
+    input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+    .captcha { min-height: 65px; }
+    .msg { min-height: 1.3em; margin: 14px 0 0; font-size: 14px; line-height: 1.4; }
+    .msg.error { color: var(--warn); }
+    .msg.ok { color: var(--ok); }
+    .link { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 600; font-size: 14px; text-decoration: underline; }
+    .link:hover:not(:disabled) { background: none; }
+    .forgot { align-self: flex-start; }
+    .signed { display: flex; flex-direction: column; gap: 12px; }
+    .signed p { margin: 0; font-size: 16px; }
+    .signed strong { color: #fff; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .row > * { flex: 1; }
+    .row > input { flex: 2; min-width: 0; }
+    .foot { margin-top: 18px; font-size: 14px; text-align: center; }
+    .foot a { color: var(--accent); }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body data-title="auth.title">
+  <main class="panel">
+    <div class="head">
+      <h1><a href="/" data-i18n="menu.title">ORBITA</a></h1>
+      <div class="lang" role="group" aria-label="Language">
+        <button data-lang="en">EN</button>
+        <button data-lang="ru">RU</button>
+      </div>
+    </div>
+
+    <div id="unavailable" class="hidden"><p class="msg error" data-i18n="auth.unavailable"></p></div>
+
+    <!-- Signed in -->
+    <div id="signed" class="signed hidden">
+      <p><span data-i18n="auth.signedAs"></span> <strong id="me-name"></strong></p>
+      <p id="me-email" class="msg"></p>
+      <div class="row">
+        <a class="btn" href="/" data-i18n="auth.toGame"></a>
+        <a class="btn" href="/profile.html" data-i18n="profile.mine"></a>
+        <button id="logout" data-i18n="auth.logout"></button>
+      </div>
+    </div>
+
+    <!-- Signed out -->
+    <div id="forms" class="hidden">
+      <div class="tabs" id="tabs" role="tablist">
+        <button data-tab="login" class="active" data-i18n="auth.tabLogin"></button>
+        <button data-tab="register" data-i18n="auth.tabRegister"></button>
+      </div>
+
+      <div class="providers" id="providers">
+        <button data-provider="google">
+          <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+          Google
+        </button>
+        <button data-provider="apple">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-4.1zM13.9 4.9c.7-.9 1.2-2 1.1-3.2-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.1 1.1.1 2.3-.6 3-1.5z"/></svg>
+          Apple
+        </button>
+        <button data-provider="discord">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#5865F2" d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.6 1.3a18.4 18.4 0 0 0-5.5 0L8.6 3a19.7 19.7 0 0 0-4.9 1.5C.6 9.1-.3 13.7.1 18.2a19.9 19.9 0 0 0 6 3l1.3-2.1-2-1 .5-.4a14.2 14.2 0 0 0 12.2 0l.5.4-2 1 1.3 2.1a19.8 19.8 0 0 0 6-3c.5-5.2-.8-9.7-3.6-13.8zM8 15.4c-1.2 0-2.2-1.1-2.2-2.4S6.8 10.6 8 10.6s2.2 1.1 2.2 2.4-1 2.4-2.2 2.4zm8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4z"/></svg>
+          Discord
+        </button>
+        <button data-provider="meta">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#0866FF" d="M6.9 5C4 5 2 8.9 2 12.6 2 15.3 3.3 17 5.4 17c1.6 0 2.8-.8 4.6-3.9l1.3-2.2.4.6 1.6 2.6c1.6 2.5 2.8 3 4.3 3 2.5 0 4.4-2.1 4.4-5.6C22 8 20 5 17 5c-1.7 0-3.2 1.1-4.8 3.4C10.6 6 9 5 6.9 5zm.1 2.3c1.2 0 2.2.9 3.7 3.2l-1.3 2c-1.4 2.2-2.1 2.8-3 2.8-.9 0-1.5-.8-1.5-2.6C4.9 10 5.8 7.3 7 7.3zm10.1.1c1.4 0 2.6 2 2.6 5 0 1.7-.6 2.6-1.6 2.6-.9 0-1.5-.6-3.1-3.1l-1.3-2.1c1.2-1.7 2.2-2.4 3.4-2.4z"/></svg>
+          Meta
+        </button>
+      </div>
+
+      <div class="or" id="or"><span data-i18n="auth.or"></span></div>
+
+      <form id="login-form" novalidate>
+        <label><span data-i18n="auth.email"></span><input name="email" type="email" autocomplete="email" required></label>
+        <label><span data-i18n="auth.password"></span><input name="password" type="password" autocomplete="current-password" required></label>
+        <div class="captcha" id="captcha-login"></div>
+        <button type="submit" data-i18n="auth.login"></button>
+        <button type="button" class="link forgot" data-view="forgot" data-i18n="auth.forgot"></button>
+      </form>
+
+      <form id="forgot-form" class="hidden" novalidate>
+        <p class="msg" data-i18n="auth.forgotHint"></p>
+        <label><span data-i18n="auth.email"></span><input name="email" type="email" autocomplete="email" required></label>
+        <div class="captcha" id="captcha-forgot"></div>
+        <button type="submit" data-i18n="auth.sendReset"></button>
+        <button type="button" class="link forgot" data-view="login" data-i18n="auth.backToLogin"></button>
+      </form>
+
+      <form id="reset-form" class="hidden" novalidate>
+        <p class="msg" data-i18n="auth.resetHint"></p>
+        <input name="username" type="email" autocomplete="username" hidden>
+        <label><span data-i18n="auth.newPassword"></span><input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+        <label><span data-i18n="auth.password2"></span><input name="password2" type="password" autocomplete="new-password" required></label>
+        <button type="submit" data-i18n="auth.savePassword"></button>
+      </form>
+
+      <form id="register-form" class="hidden" novalidate>
+        <label><span data-i18n="auth.name"></span><input name="name" maxlength="16" autocomplete="nickname" required></label>
+        <label><span data-i18n="auth.email"></span><input name="email" type="email" autocomplete="email" required></label>
+        <label><span data-i18n="auth.password"></span><input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+        <label><span data-i18n="auth.password2"></span><input name="password2" type="password" autocomplete="new-password" required></label>
+        <div class="captcha" id="captcha-register"></div>
+        <button type="submit" data-i18n="auth.register"></button>
+      </form>
+
+    </div>
+
+    <p id="msg" class="msg" role="status"></p>
+    <button id="resend" class="link hidden" data-i18n="auth.resend"></button>
+
+    <p class="foot"><a href="/" data-i18n="auth.back"></a></p>
+  </main>
+
+  <script type="module" src="js/auth.js"></script>
+</body>
+</html>

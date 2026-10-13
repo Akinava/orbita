@@ -1,0 +1,6 @@
+# Build context is the project root; the image needs only the server code and its requirements.
+# Everything else (shadow/ with the private key, the virtualenv in bin/ and lib/, .git) stays out.
+*
+!app/
+!requirements.txt
+**/__pycache__

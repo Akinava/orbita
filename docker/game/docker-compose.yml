@@ -1,0 +1,163 @@
+# All services of the game. From this directory (docker/game):
+#   docker compose up -d --build        game (nginx with HTTPS :8080, web, a process per map) + coturn
+#   docker compose logs -f              logs
+#   docker compose down                 stop
+# Certificates (profile "cert", run on demand, see README):
+#   docker compose run --rm --service-ports certbot renew
+#   docker compose run --rm cert-copy
+#
+# Secrets and addresses live in shadow/ (git-ignored): TLS files shadow/fullchain.pem and
+# shadow/privkey.pem, TURN settings shadow/turn.env (TURN_SECRET, TURN_HOST, TURN_EXTERNAL_IP,
+# TURN_LOCAL_IP). The router forwards 443 -> 8080, 80 -> 8000 and the TURN ports (see README).
+# Paths below are relative to this file.
+#
+# The defaults below are for the home server; the VDS overrides them with vds.env (scripts/deploy.sh):
+# public ports 443 and 80 directly, its own domain and the database in the "db" service.
+
+name: vr-orbita
+
+# CPU and memory per service for /metrics (app/metrics.py): every service runs in a systemd slice of its
+# own, orbita-<service>.slice (cgroup_parent), and web reads them from the host's cgroup tree
+# (cgroup v2, Docker's systemd cgroup driver).
+
+# The game server image; the maps players create run in shard containers (ORBITA_SHARD), each on a core
+# of its own; a map's id starts with its shard's name.
+# All of them reach PostgreSQL (accounts; DATABASE_URL in shadow/auth.env, its host replaced by DATABASE_HOST):
+# web for /auth, the shards for pilots' names and statistics. At home it runs on the host machine, on the VDS
+# in the "db" service.
+x-game: &game
+  build:
+    context: ../..
+    dockerfile: docker/game/Dockerfile
+  image: vr-orbita-game
+  restart: unless-stopped
+  user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  volumes:
+    - ../../shadow:/srv/shadow:ro  # shadow/auth.env (accounts) and the Apple sign-in key
+
+services:
+  # HTTPS on :8080: routes /ws?map=<id> to the shard of that map, the rest to web (docker/nginx/nginx.conf)
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    cgroup_parent: orbita-nginx.slice
+    ports:
+      - "${HTTPS_PORT:-8080}:8080"
+    volumes:
+      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../../shadow/fullchain.pem:/certs/fullchain.pem:ro
+      - ../../shadow/privkey.pem:/certs/privkey.pem:ro
+    depends_on: [web, map-alpha, map-beta, map-gamma]
+
+  # Game files, /ice, /api/maps (lists the shards' maps and creates new ones on the least busy shard)
+  # and accounts (/auth); hosts no map itself
+  web:
+    <<: *game
+    cgroup_parent: orbita-web.slice
+    env_file: ../../shadow/turn.env  # TURN_SECRET and TURN_HOST for the voice chat credentials
+    volumes:
+      - ../../shadow:/srv/shadow:ro
+      - /sys/fs/cgroup:/host/cgroup:ro  # the services' slices for /metrics
+    environment:
+      ORBITA_SHARD: ""
+      ORBITA_SHARDS: alpha,beta,gamma
+      ORBITA_MAP_URL: "http://map-{shard}:8000"
+      DATABASE_HOST: ${DATABASE_HOST:-host.docker.internal}
+
+  # Shards: one per name in ORBITA_SHARDS above; a new one also needs its route in docker/nginx/nginx.conf
+  map-alpha:
+    <<: *game
+    cgroup_parent: orbita-map-alpha.slice
+    environment:
+      ORBITA_SHARD: alpha
+      DATABASE_HOST: ${DATABASE_HOST:-host.docker.internal}
+
+  map-beta:
+    <<: *game
+    cgroup_parent: orbita-map-beta.slice
+    environment:
+      ORBITA_SHARD: beta
+      DATABASE_HOST: ${DATABASE_HOST:-host.docker.internal}
+
+  map-gamma:
+    <<: *game
+    cgroup_parent: orbita-map-gamma.slice
+    environment:
+      ORBITA_SHARD: gamma
+      DATABASE_HOST: ${DATABASE_HOST:-host.docker.internal}
+
+  # PostgreSQL for the VDS (profile "db"; COMPOSE_PROFILES in vds.env). Reachable only from the containers;
+  # the password is POSTGRES_PASSWORD in shadow/db.env, the same as in DATABASE_URL of shadow/auth.env.
+  db:
+    image: postgres:18
+    profiles: [db]
+    restart: unless-stopped
+    cgroup_parent: orbita-db.slice
+    env_file:
+      - path: ../../shadow/db.env
+        required: false  # exists only on the VDS; compose checks it even with the profile off
+    volumes:
+      - db-data:/var/lib/postgresql
+
+  coturn:
+    image: coturn/coturn:4.6.3
+    restart: unless-stopped
+    # Host networking: the relay uses a whole UDP port range (min-port..max-port in turnserver.conf)
+    network_mode: host
+    cgroup_parent: orbita-coturn.slice
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    env_file: ../../shadow/turn.env
+    volumes:
+      - ../turn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ../../shadow/fullchain.pem:/certs/fullchain.pem:ro
+      - ../../shadow/privkey.pem:/certs/privkey.pem:ro
+    # Settings from shadow/turn.env are expanded inside the container ($$), so plain
+    # `docker compose up` works without --env-file. Listens and relays only on the LAN address
+    # (not Docker bridges or IPv6) plus localhost; external-ip is "public/LAN" behind the router.
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        exec turnserver -c /etc/coturn/turnserver.conf
+        --realm="$$TURN_HOST" --server-name="$$TURN_HOST"
+        --static-auth-secret="$$TURN_SECRET"
+        --external-ip="$$TURN_EXTERNAL_IP"
+        --listening-ip="$$TURN_LOCAL_IP" --listening-ip=127.0.0.1
+        --relay-ip="$$TURN_LOCAL_IP"
+        --cert=/certs/fullchain.pem --pkey=/certs/privkey.pem
+
+  # Let's Encrypt in standalone mode on local :8000 (the router forwards public :80 there)
+  certbot:
+    image: certbot/certbot
+    profiles: [cert]
+    ports:
+      - "${CERTBOT_PORT:-8000}:80"
+    volumes:
+      - ../../shadow/etc-letsencrypt:/etc/letsencrypt
+      - ../../shadow/var-lib-letsencrypt:/var/lib/letsencrypt
+      - ../../shadow/var-log-letsencrypt:/var/log/letsencrypt
+
+  # Copies the current certificate from certbot's (root-owned) store into shadow/ for game and coturn
+  cert-copy:
+    image: certbot/certbot
+    profiles: [cert]
+    env_file: ../../shadow/turn.env  # TURN_HOST is the certificate's domain
+    environment:
+      OWNER: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    volumes:
+      - ../../shadow:/shadow
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        cp -L /shadow/etc-letsencrypt/live/$$TURN_HOST/fullchain.pem /shadow/etc-letsencrypt/live/$$TURN_HOST/privkey.pem
+        /shadow/etc-letsencrypt/live/$$TURN_HOST/cert.pem /shadow/etc-letsencrypt/live/$$TURN_HOST/chain.pem /shadow/ &&
+        chown $$OWNER /shadow/*.pem &&
+        chmod 644 /shadow/fullchain.pem /shadow/cert.pem /shadow/chain.pem &&
+        chmod 600 /shadow/privkey.pem &&
+        echo "copied $$TURN_HOST certificate to shadow/"
+
+volumes:
+  db-data:

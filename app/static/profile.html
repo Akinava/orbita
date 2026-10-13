@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>Orbita — pilot profile</title>
+  <style>
+    :root { --fg: #bfefff; --accent: #28d7ff; --bg: rgba(2, 10, 18, 0.92); --warn: #ffb36b; --ok: #7dff9a; --line: #1d5a6c; }
+    html, body { margin: 0; min-height: 100%; font-family: system-ui, sans-serif; color: var(--fg); }
+    body {
+      display: flex; padding: 16px; box-sizing: border-box; min-height: 100vh; min-height: 100dvh;
+      background: radial-gradient(ellipse at 30% 20%, #0b2a3a 0%, #02060c 55%, #000 100%);
+    }
+    .panel {
+      margin: auto; width: 100%; max-width: 560px; box-sizing: border-box; background: var(--bg);
+      border: 1px solid var(--line); border-radius: 12px; padding: 24px; box-shadow: 0 0 40px rgba(40, 215, 255, 0.15);
+    }
+    .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+    h1 { margin: 0; letter-spacing: 0.35em; color: var(--accent); font-weight: 800; font-size: 30px; }
+    h1 a { color: inherit; text-decoration: none; }
+    .lang { display: flex; gap: 4px; }
+    button, .btn {
+      font: inherit; font-weight: 700; font-size: 15px; padding: 10px 16px; border-radius: 8px; cursor: pointer;
+      border: 1px solid var(--accent); background: #07303d; color: #e8fbff; text-decoration: none; text-align: center;
+      box-sizing: border-box; display: inline-block;
+    }
+    button:hover:not(:disabled), .btn:hover { background: #0b4a5e; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .lang button { font-size: 13px; padding: 6px 10px; background: transparent; opacity: 0.6; }
+    .lang button.active { background: #07303d; opacity: 1; }
+    .ghost { background: transparent; border-color: var(--line); }
+
+    .hero { display: flex; align-items: center; gap: 18px; }
+    .avatar {
+      flex: none; width: 112px; height: 112px; border-radius: 50%; overflow: hidden; border: 2px solid var(--accent);
+      display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: 800; color: #fff;
+      background: #07303d; box-shadow: 0 0 24px rgba(40, 215, 255, 0.25);
+    }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .who { min-width: 0; }
+    .who h2 { margin: 0; font-size: 28px; color: #fff; overflow-wrap: anywhere; }
+    .who p { margin: 4px 0 0; font-size: 14px; opacity: 0.75; }
+    .tools { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .tools button, .tools label.btn { font-size: 13px; padding: 7px 12px; }
+    .tools input[type=file] { display: none; }
+
+    .rename { display: flex; gap: 8px; margin-top: 18px; }
+    .rename input {
+      flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 8px;
+      border: 1px solid var(--line); background: #041a22; color: #e8fbff;
+    }
+    .rename input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+    .label { display: block; font-size: 13px; opacity: 0.8; margin-top: 18px; }
+
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 22px; }
+    .stat { background: #041a22; border: 1px solid var(--line); border-radius: 10px; padding: 12px 8px; text-align: center; }
+    .stat b { display: block; font-size: 24px; color: #fff; font-variant-numeric: tabular-nums; }
+    .stat span { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; }
+    .stat.win b { color: var(--ok); }
+    .stat.loss b { color: #ff7a6b; }
+    @media (max-width: 480px) { .stats { grid-template-columns: repeat(2, 1fr); } .hero { flex-direction: column; text-align: center; } .tools { justify-content: center; } }
+    .details { margin: 16px 0 0; padding: 0; list-style: none; font-size: 14px; }
+    .details li { display: flex; justify-content: space-between; padding: 7px 2px; border-bottom: 1px solid rgba(29, 90, 108, 0.5); }
+    .details li b { color: #fff; font-variant-numeric: tabular-nums; }
+
+    .msg { min-height: 1.3em; margin: 14px 0 0; font-size: 14px; line-height: 1.4; }
+    .msg.error { color: var(--warn); }
+    .msg.ok { color: var(--ok); }
+    .foot { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body data-title="profile.title">
+  <main class="panel">
+    <div class="head">
+      <h1><a href="/" data-i18n="menu.title">ORBITA</a></h1>
+      <div class="lang" role="group" aria-label="Language">
+        <button data-lang="en">EN</button>
+        <button data-lang="ru">RU</button>
+      </div>
+    </div>
+
+    <p id="status" class="msg" data-i18n="profile.loading"></p>
+
+    <section id="card" class="hidden">
+      <div class="hero">
+        <div class="avatar" id="avatar"></div>
+        <div class="who">
+          <h2 id="name"></h2>
+          <p id="since"></p>
+          <div class="tools owner hidden">
+            <label class="btn"><span data-i18n="profile.changeAvatar"></span><input type="file" id="avatar-file" accept="image/png,image/jpeg,image/webp,image/*"></label>
+            <button id="avatar-remove" class="ghost" data-i18n="profile.removeAvatar"></button>
+          </div>
+        </div>
+      </div>
+
+      <form id="name-form" class="owner hidden" novalidate>
+        <label class="label" for="name-input" data-i18n="auth.rename"></label>
+        <div class="rename">
+          <input id="name-input" name="name" maxlength="16" autocomplete="nickname" required>
+          <button type="submit" data-i18n="auth.renameSave"></button>
+        </div>
+      </form>
+
+      <div class="stats">
+        <div class="stat"><b id="s-xp">0</b><span data-i18n="profile.xp"></span></div>
+        <div class="stat"><b id="s-hours">0</b><span data-i18n="profile.flight"></span></div>
+        <div class="stat win"><b id="s-wins">0</b><span data-i18n="profile.wins"></span></div>
+        <div class="stat loss"><b id="s-losses">0</b><span data-i18n="profile.losses"></span></div>
+      </div>
+      <ul class="details">
+        <li><span data-i18n="profile.asteroidKills"></span><b id="s-asteroids">0</b></li>
+        <li><span data-i18n="profile.ratio"></span><b id="s-ratio">—</b></li>
+      </ul>
+    </section>
+
+    <p id="msg" class="msg" role="status"></p>
+
+    <div class="foot">
+      <a class="btn" href="/" data-i18n="auth.toGame"></a>
+      <a class="btn ghost" href="/leaders.html" data-i18n="menu.leaders"></a>
+      <a class="btn ghost hidden" id="signin" href="/login.html?next=/profile.html" data-i18n="menu.signIn"></a>
+      <a class="btn ghost hidden" id="myprofile" href="/profile.html" data-i18n="profile.mine"></a>
+    </div>
+  </main>
+
+  <script type="module" src="js/profile.js"></script>
+</body>
+</html>
