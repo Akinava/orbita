@@ -6,7 +6,7 @@ const DONATE_LINKS = [
   ['Boosty', 'https://boosty.to/akinava'],
   ['Patreon', 'https://www.patreon.com/c/Akinava'],
 ];
-const TELEGRAM = 'https://orbita.p2me.in/';
+const TELEGRAM = 'https://t.me/orbita2me/';
 
 const CSS = `
   .links-clear { padding-bottom: calc(var(--links-h, 64px) + 16px) !important; }
