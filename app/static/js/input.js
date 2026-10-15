@@ -8,6 +8,7 @@ const DEAD = 0.12;
 const deadzone = (v) => (Math.abs(v) < DEAD ? 0 : (v - Math.sign(v) * DEAD) / (1 - DEAD));
 const clamp1 = (v) => Math.max(-1, Math.min(1, v));
 const LEVER_STEP = 0.02; // the throttle lever takes over only when it actually moves
+const MOUSE_FULL = 600; // mouse speed (px/s) that gives full pitch or yaw
 
 // Flight joysticks (e.g. Thrustmaster T.Flight HOTAS X) have no standard mapping; browsers list their
 // axes in device order: 0 stick X, 1 stick Y, 2 throttle lever, 3 stick twist, 4 rudder rocker.
@@ -28,6 +29,10 @@ export class Input {
     this.invertPitch = false; // menu setting: swaps nose up / nose down for every control
     this.throttleLever = null; // 0..1 when a joystick lever moved this frame, otherwise null
     this.levers = new Map(); // gamepad index -> last lever position
+    this.enabled = false; // the ship is flown: a click on the game captures the mouse
+    this.mouseX = this.mouseY = 0; // mouse movement (px) since the last update
+    this.mouseFire = false;
+    this.lastUpdate = performance.now();
 
     window.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLInputElement) return; // typing the pilot name
@@ -35,12 +40,44 @@ export class Input {
       if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    window.addEventListener('blur', () => this.keys.clear());
+    window.addEventListener('blur', () => {
+      this.keys.clear();
+      this.mouseFire = false;
+    });
 
-    // Dragging the view (mouse, or a finger on the open part of a touch screen)
+    // Mouse flight (PC): a click on the game captures the cursor (Esc releases it); moving the mouse
+    // turns the ship (pitch and yaw), the left button fires, the right one held looks around the cockpit.
+    this.canvas = canvas;
+    canvas.addEventListener('mousedown', (e) => {
+      if (this.touch || renderer.xr.isPresenting || !this.enabled) return;
+      if (!this.captured()) {
+        canvas.requestPointerLock?.();
+        return;
+      }
+      if (e.button === 0) this.mouseFire = true;
+    });
+    window.addEventListener('mouseup', (e) => e.button === 0 && (this.mouseFire = false));
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.addEventListener('pointerlockchange', () => {
+      if (this.captured()) return;
+      this.mouseFire = false;
+      this.mouseX = this.mouseY = 0;
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!this.captured()) return;
+      if (e.buttons & 2) {
+        this.lookYaw = Math.max(-2.2, Math.min(2.2, this.lookYaw - e.movementX * 0.004));
+        this.lookPitch = Math.max(-1.2, Math.min(1.2, this.lookPitch - e.movementY * 0.004));
+      } else {
+        this.mouseX += e.movementX;
+        this.mouseY += e.movementY;
+      }
+    });
+
+    // Dragging the view with a finger on the open part of a touch screen (the mouse flies, see above)
     let dragging = null, lx = 0, ly = 0;
     canvas.addEventListener('pointerdown', (e) => {
-      if (dragging !== null) return;
+      if (dragging !== null || e.pointerType === 'mouse') return;
       dragging = e.pointerId;
       lx = e.clientX;
       ly = e.clientY;
@@ -63,16 +100,34 @@ export class Input {
     return pressed && !was;
   }
 
+  captured() {
+    return document.pointerLockElement === this.canvas;
+  }
+
+  // Releases the captured mouse (the menu and the settings need the cursor)
+  release() {
+    if (this.captured()) document.exitPointerLock();
+  }
+
   update(enabled) {
+    this.enabled = enabled;
+    const now = performance.now();
+    const dt = Math.max(0.001, (now - this.lastUpdate) / 1000);
+    this.lastUpdate = now;
     const k = (c) => (this.keys.has(c) ? 1 : 0);
-    let pitch = k('ArrowUp') - k('ArrowDown');
+    let pitch = k('KeyW') + k('ArrowUp') - k('KeyS') - k('ArrowDown');
     let yaw = k('KeyA') - k('KeyD');
     let roll = k('KeyQ') + k('ArrowLeft') - k('KeyE') - k('ArrowRight');
-    let throttle = k('KeyW') - k('KeyS');
-    let fire = k('Space') === 1;
+    let throttle = k('KeyZ') - k('KeyX');
+    let fire = k('Space') === 1 || this.mouseFire;
     let boost = k('ShiftLeft') + k('ShiftRight') > 0;
     let recenter = this.edge('kR', k('KeyR') === 1);
-    let allStop = this.edge('kX', k('KeyX') === 1);
+    let allStop = this.edge('kC', k('KeyC') === 1);
+    if (this.captured()) {
+      pitch -= clamp1(this.mouseY / dt / MOUSE_FULL); // mouse forward = nose up
+      yaw -= clamp1(this.mouseX / dt / MOUSE_FULL);
+    }
+    this.mouseX = this.mouseY = 0;
     let talk = this.edge('kV', k('KeyV') === 1); // toggles the voice chat microphone
     let ready = this.edge('kG', k('KeyG') === 1);
     let team = this.edge('kT', k('KeyT') === 1);

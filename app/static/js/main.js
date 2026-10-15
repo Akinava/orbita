@@ -452,6 +452,7 @@ volumeSliders(document.getElementById('menu-volumes'));
 volumeSliders(playSettings);
 function toggleSettings(open = playSettings.classList.contains('hidden')) {
   if (open) {
+    input.release();
     playVoice.checked = voiceToggle.checked;
     playInvert.checked = invertToggle.checked;
   }
@@ -989,6 +990,7 @@ function enterPlay() {
 
 function showMenu() {
   state.mode = 'menu';
+  input.release();
   toggleSettings(false);
   vrMenu.toggle(false);
   music.play('profile');
