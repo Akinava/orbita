@@ -52,6 +52,57 @@ scripts/deploy.sh                 # дальше: собрать образ, з�
 `/srv/orbita/shadow/` с флагом `--with-shadow`. Сертификат выпускается на самом VDS при первом деплое,
 продлевает его еженедельное задание `/etc/cron.d/orbita-cert`.
 
+### Безопасность VDS
+
+Настроено вручную, `scripts/deploy.sh` этого не делает.
+
+**Файрвол.** Правила хоста — `docker/host/firewall.sh` (на сервере `/usr/local/sbin/firewall.sh`), включаются при
+загрузке юнитом `docker/host/firewall.service` (`/etc/systemd/system/firewall.service`). Скрипт трогает только
+цепочку `INPUT`, цепочки Docker не меняет. Политика `DROP` для IPv4 и IPv6, открыто:
+
+| Порт | Зачем |
+|---|---|
+| 22/tcp | SSH, не больше 10 новых подключений в минуту с одного IP |
+| 443/tcp | nginx |
+| 3478, 5349 tcp+udp | coturn |
+| 49160–49200/udp | ретрансляция coturn (`min-port`..`max-port` в `turnserver.conf`) |
+
+Плюс ICMP/ICMPv6, DHCP и трафик из контейнеров к хосту. Порты, опубликованные Docker'ом (443, 80 у certbot),
+по IPv4 идут через DNAT и цепочку `FORWARD`, а не через `INPUT`, поэтому продление сертификата файрвол не
+ломает. Ограничивать опубликованные порты — в цепочке `DOCKER-USER`, не в `INPUT`.
+
+Юниту нужен `DefaultDependencies=no`: без него он ждёт `sysinit.target`, который держит cloud-init до
+появления сети, а сеть ждёт файрвол — система загружается без сети (см. `REPORT.txt`).
+
+Поменять правила:
+
+```bash
+scp docker/host/firewall.sh <host>:/usr/local/sbin/firewall.sh
+# страховка: если доступ пропадёт, через 5 минут файрвол откроется сам
+ssh <host> 'echo "iptables -P INPUT ACCEPT; ip6tables -P INPUT ACCEPT; iptables -F INPUT; ip6tables -F INPUT" | at now + 5 min'
+ssh <host> systemctl restart firewall
+# проверить из НОВОГО подключения: ssh, сайт, голос; затем отменить откат
+ssh <host> 'atrm $(atq | cut -f1)'
+```
+
+**SSH** — `/etc/ssh/sshd_config.d/10-hardening.conf`: вход только по ключу (`PasswordAuthentication no`),
+`X11Forwarding no`, `MaxAuthTries 3`.
+
+**fail2ban** — `/etc/fail2ban/jail.d/sshd.local`: 5 неудачных входов за 10 минут — бан на час. Свои адреса —
+в `ignoreip`. Баны живут в отдельной таблице nftables (`inet f2b-table`) и с `firewall.sh` не пересекаются.
+Посмотреть: `fail2ban-client status sshd`.
+
+**Прочее:**
+- `/etc/sysctl.d/99-hardening.conf` — `send_redirects = 0`;
+- nginx — `server_tokens off` (версия не видна в заголовке `Server`);
+- coturn — ретрансляция в частные сети и на собственный IP сервера запрещена (`denied-peer-ip`);
+- обновления безопасности ставит `unattended-upgrades`; ядро применяется только после перезагрузки
+  (есть ли ожидающая — `ls /var/run/reboot-required`).
+
+Перед перезагрузкой после изменений в загрузке (юниты, ядро, сеть) — держать открытой консоль хостера.
+Если сервер не поднялся: Rescue-система хостера, `mount /dev/sda1 /mnt`, журнал прошлой загрузки —
+`journalctl -D /mnt/var/log/journal -b -1`.
+
 ## Без Docker
 
 Виртуальное окружение — сам корень проекта (Python 3.12):

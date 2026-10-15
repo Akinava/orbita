@@ -116,6 +116,7 @@ services:
     # Settings from shadow/turn.env are expanded inside the container ($$), so plain
     # `docker compose up` works without --env-file. Listens and relays only on the LAN address
     # (not Docker bridges or IPv6) plus localhost; external-ip is "public/LAN" behind the router.
+    # The host's own address is a denied peer too: clients can't reach sshd/docker-proxy through the relay.
     entrypoint:
       - sh
       - -c
@@ -126,6 +127,7 @@ services:
         --external-ip="$$TURN_EXTERNAL_IP"
         --listening-ip="$$TURN_LOCAL_IP" --listening-ip=127.0.0.1
         --relay-ip="$$TURN_LOCAL_IP"
+        --denied-peer-ip="$$TURN_LOCAL_IP"
         --cert=/certs/fullchain.pem --pkey=/certs/privkey.pem
 
   # Let's Encrypt in standalone mode on local :8000 (the router forwards public :80 there)

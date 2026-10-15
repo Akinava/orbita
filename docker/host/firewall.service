@@ -1,0 +1,17 @@
+[Unit]
+Description=Host firewall (INPUT rules)
+# No default deps: otherwise we'd wait for sysinit.target, which cloud-init-network
+# holds until the network is up, while the network waits for us -> boot deadlock.
+DefaultDependencies=no
+After=systemd-modules-load.service local-fs.target
+Before=network-pre.target shutdown.target
+Wants=network-pre.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/firewall.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
