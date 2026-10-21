@@ -534,7 +534,8 @@ placeAtSpawn();
 
 // Map choice (app/main.py, /api/maps): maps are made by the players. The pilot picks a type, then one
 // of the busiest public maps of that type or a new one (private ones are left out of the list and
-// joined by their link, ?map=<id>, which the menu shows for the current map).
+// joined by their link, ?map=<id>, which the menu shows for the current map). The list goes busiest
+// first, "new map" last, and until the pilot picks one the first option stays chosen.
 const NEW_MAP = 'new';
 const LINK_MAP = 'link';
 const MAP_REFRESH = 5; // seconds between list refreshes while the menu is open
@@ -547,6 +548,7 @@ const mapLinkRow = document.getElementById('map-link-row');
 const readyBtn = document.getElementById('match-ready');
 let maps = [];
 let linked = null; // the map of the link the page was opened with: { id, type, name, ... }
+let mapPicked = false; // the pilot chose a map in the list themselves
 try {
   modeSelect.value = localStorage.getItem('orbita.mode') || 'farm';
 } catch { /* storage blocked */ }
@@ -564,14 +566,15 @@ function renderMaps() {
   const options = [];
   if (mapInfo) options.push(option(mapInfo.id, t('menu.currentMap', named(mapInfo)))); // back to it from the menu
   if (linked && linked.id !== mapInfo?.id) options.push(option(LINK_MAP, t('menu.linkedMap', named(linked))));
-  options.push(option(NEW_MAP, t('menu.newMap')));
   for (const m of maps) {
     if (m.id === mapInfo?.id) continue;
     const phase = m.phase === 'round' ? ` · ${t('menu.inRound')}` : '';
     options.push(option(m.id, t('menu.mapOption', { name: m.name || '—', n: m.players, max: m.max }) + phase));
   }
+  options.push(option(NEW_MAP, t('menu.newMap')));
   mapSelect.replaceChildren(...options);
-  mapSelect.value = [...mapSelect.options].some((o) => o.value === current) ? current : options[0].value;
+  const kept = mapPicked && options.some((o) => o.value === current);
+  mapSelect.value = kept ? current : options[0].value;
   privateRow.classList.toggle('hidden', mapSelect.value !== NEW_MAP);
 }
 
@@ -609,11 +612,14 @@ modeSelect.addEventListener('change', () => {
     localStorage.setItem('orbita.mode', modeSelect.value);
   } catch { /* storage blocked */ }
   maps = [];
+  mapPicked = false;
   renderMaps();
-  mapSelect.value = NEW_MAP;
   refreshMaps();
 });
-mapSelect.addEventListener('change', () => privateRow.classList.toggle('hidden', mapSelect.value !== NEW_MAP));
+mapSelect.addEventListener('change', () => {
+  mapPicked = true;
+  privateRow.classList.toggle('hidden', mapSelect.value !== NEW_MAP);
+});
 setInterval(() => state.mode === 'menu' && !document.hidden && refreshMaps(), MAP_REFRESH * 1000);
 renderMaps();
 refreshMaps();
