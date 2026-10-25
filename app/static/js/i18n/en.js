@@ -62,7 +62,7 @@ export default {
   'ctl.joy.b5.do': 'microphone on/off',
   'ctl.touch': 'Touch screen',
   'ctl.touch.stick': 'Left thumb',
-  'ctl.touch.stick.do': 'floating stick: pitch (pull down — nose up) and roll',
+  'ctl.touch.stick.do': 'floating stick: pitch (up — nose up) and roll',
   'ctl.touch.slider': 'Right slider',
   'ctl.touch.slider.do': 'throttle (stays where you leave it)',
   'ctl.touch.buttons': 'FIRE / BOOST / STOP',

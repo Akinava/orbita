@@ -487,6 +487,20 @@ try {
   voiceToggle.checked = localStorage.getItem('orbita.voice') !== 'off';
 } catch { /* storage blocked */ }
 
+// Phones remember the mic button (open by default on the first visit)
+function micPref() {
+  try {
+    return localStorage.getItem('orbita.mic') !== 'off';
+  } catch {
+    return true; // storage blocked
+  }
+}
+function saveMicPref(on) {
+  try {
+    localStorage.setItem('orbita.mic', on ? 'on' : 'off');
+  } catch { /* storage blocked */ }
+}
+
 async function setupVoice() {
   try {
     localStorage.setItem('orbita.voice', voiceToggle.checked ? 'on' : 'off');
@@ -496,8 +510,10 @@ async function setupVoice() {
     return;
   }
   if (voice.enabled) return;
-  if (await voice.enable()) say(t(touchMode ? 'msg.voiceReadyTouch' : 'msg.voiceReady'), '#9ff3ff');
-  else {
+  if (await voice.enable()) {
+    if (touchMode) voice.talk(micPref()); // phones: the mic is open until the pilot mutes it
+    say(t(touchMode ? 'msg.voiceReadyTouch' : 'msg.voiceReady'), '#9ff3ff');
+  } else {
     voiceToggle.checked = playVoice.checked = false;
     say(t('msg.voiceDenied'), '#ffb36b');
   }
@@ -1112,6 +1128,7 @@ function tick() {
   combat.update(dt, performance.now() / 1000, ship.position, controllable);
   if (input.talk && voice.enabled) {
     voice.talk(!voice.talking);
+    if (touchMode) saveMicPref(voice.talking);
     sfx.beep(voice.talking ? 990 : 660, 0.08, 0.1);
   }
   state.mic = voice.enabled ? voice.talking : null;

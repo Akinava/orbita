@@ -84,7 +84,7 @@ export class TouchControls {
     return l;
   }
 
-  // Floating stick: appears where the thumb lands. Pull back (down) = nose up, as on a flight stick.
+  // Floating stick: appears where the thumb lands. Up = nose up, as in most phone games.
   setupStick() {
     let id = null, ox = 0, oy = 0;
     const move = (e) => {
@@ -94,7 +94,7 @@ export class TouchControls {
       this.knob.style.transform = `translate(${dx * STICK_RADIUS}px, ${dy * STICK_RADIUS}px)`;
       const curve = (v) => (Math.abs(v) < STICK_DEAD ? 0 : Math.sign(v) * ((Math.abs(v) - STICK_DEAD) / (1 - STICK_DEAD)) ** 1.5);
       this.roll = -curve(dx);
-      this.pitch = curve(dy);
+      this.pitch = -curve(dy);
     };
     this.zone.addEventListener('pointerdown', (e) => {
       if (id !== null) return;

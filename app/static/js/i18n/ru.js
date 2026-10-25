@@ -62,7 +62,7 @@ export default {
   'ctl.joy.b5.do': 'микрофон вкл/выкл',
   'ctl.touch': 'Сенсорный экран',
   'ctl.touch.stick': 'Левый палец',
-  'ctl.touch.stick.do': 'плавающий стик: тангаж (вниз — нос вверх) и крен',
+  'ctl.touch.stick.do': 'плавающий стик: тангаж (вверх — нос вверх) и крен',
   'ctl.touch.slider': 'Ползунок справа',
   'ctl.touch.slider.do': 'тяга (остаётся, где отпустили)',
   'ctl.touch.buttons': 'ОГОНЬ / ФОРСАЖ / СТОП',
