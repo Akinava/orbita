@@ -16,6 +16,8 @@ import { TouchControls, isTouchDevice } from './touch.js';
 import { music, musicButton } from './music.js';
 import { linksBar } from './links.js';
 import { onVolume, volumeSliders } from './volume.js';
+import { sensitivitySlider } from './sensitivity.js';
+import { eventCountdown } from './countdown.js';
 
 const MAX_SPEED = 320;
 const BOOST_MULT = 3;
@@ -246,6 +248,7 @@ const net = new Net({
     match = msg.match;
     myTeam = msg.team;
     myReady = false;
+    combat.lasers.setColor(msg.colors?.fire ?? null); // the pilot's own colour, on PvP maps only
     say(t('msg.map', { type: t(`info.mode.${mapInfo.type}`), name: mapInfo.name || '—' }), '#9ff3ff');
     voice.closeAll(); // new map or new connection: player ids changed
     roster = [];
@@ -280,6 +283,7 @@ const net = new Net({
   },
   onRoster(msg) {
     roster = msg.players.filter((p) => p.id !== net.id);
+    remotes.setColors(roster);
     const me = msg.players.find((p) => p.id === net.id);
     if (!me) return;
     myReady = me.r;
@@ -383,7 +387,7 @@ const net = new Net({
     voice.onSignal(msg.from, msg.data);
   },
   onShot(msg) {
-    remotes.showShot(msg.from, msg.to);
+    remotes.showShot(msg.from, msg.to, msg.id);
     sfx.enemyLaser(1 - ship.position.distanceTo(new THREE.Vector3().fromArray(msg.from)) / 3000);
   },
   onHit(msg) {
@@ -443,6 +447,7 @@ music.play('profile');
 musicButton();
 // Donation and contact links under the menu (index.html hides them while playing)
 linksBar(document.getElementById('overlay'));
+eventCountdown();
 
 // Volume: the game's sounds, music and other pilots' voices (js/volume.js). Sliders in the menu, and the
 // same in the settings panel over the game that the ⚙ button or M opens without stopping the flight
@@ -450,6 +455,8 @@ linksBar(document.getElementById('overlay'));
 const playSettings = document.getElementById('play-settings');
 volumeSliders(document.getElementById('menu-volumes'));
 volumeSliders(playSettings);
+sensitivitySlider(document.getElementById('menu-controls'), touchMode);
+sensitivitySlider(playSettings, touchMode);
 function toggleSettings(open = playSettings.classList.contains('hidden')) {
   if (open) {
     input.release();
@@ -961,10 +968,7 @@ function collideStation(station) {
 
 // --- View / XR -------------------------------------------------------------------
 function recenter() {
-  if (!renderer.xr.isPresenting) {
-    input.lookYaw = input.lookPitch = 0;
-    return;
-  }
+  if (!renderer.xr.isPresenting) return;
   const yaw = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ').y;
   rig.rotation.set(0, -yaw, 0);
   rig.updateMatrix();
@@ -1154,7 +1158,7 @@ function tick() {
   for (const r of remotes.list) {
     // [name]: talking; during a round on team maps only teammates, whom one hears
     const heard = r.talking && (!teamVoice() || r.team === myTeam);
-    contacts.push({ pos: r.obj.position, type: CONTACT.PLAYER, label: heard ? `[${r.name}]` : r.name });
+    contacts.push({ pos: r.obj.position, type: CONTACT.PLAYER, label: heard ? `[${r.name}]` : r.name, color: remotes.colors.get(r.id)?.radar });
     const d = r.obj.position.distanceTo(ship.position);
     if (d < targetDist) { targetDist = d; target = r; }
   }
@@ -1195,7 +1199,6 @@ function tick() {
 
   sfx.engine(state.speed / (MAX_SPEED * BOOST_MULT), state.boosting);
 
-  if (!renderer.xr.isPresenting) camera.rotation.set(input.lookPitch, input.lookYaw, 0, 'YXZ');
   renderer.render(scene, camera);
 }
 

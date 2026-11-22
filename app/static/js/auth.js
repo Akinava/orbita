@@ -2,6 +2,9 @@
 // the forgotten password forms and the signed-in view. The server side is app/auth.py.
 import { t, setText, setLang, getLang } from './i18n.js';
 import { music, musicButton } from './music.js';
+import { eventCountdown } from './countdown.js';
+
+eventCountdown();
 
 const $ = (sel) => document.querySelector(sel);
 const params = new URLSearchParams(location.search);

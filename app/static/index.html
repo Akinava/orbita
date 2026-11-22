@@ -22,6 +22,10 @@
       padding: 24px 28px; box-shadow: 0 0 40px rgba(40, 215, 255, 0.15);
     }
     .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .event { text-align: center; line-height: 1.2; min-width: 0; }
+    .event-label { font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
+    .event-time { font-size: 24px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    @media (max-width: 620px) { .head { flex-wrap: wrap; } .event { order: 3; flex-basis: 100%; margin-top: 6px; } }
     .lang { display: flex; gap: 4px; }
     .lang button { font-size: 14px; padding: 6px 10px; background: transparent; opacity: 0.6; }
     .lang button.active { background: #07303d; opacity: 1; }
@@ -69,6 +73,7 @@
     .volumes label { display: grid; grid-template-columns: 4.5em 1fr 3em; align-items: center; gap: 8px; font-size: 14px; }
     .volumes input { width: 100%; min-width: 0; accent-color: var(--accent); }
     .volumes output { text-align: right; font-variant-numeric: tabular-nums; opacity: 0.85; }
+    .volumes label.speed { grid-template-columns: auto 1fr 3em; }
     .account a { color: var(--accent); font-weight: 600; }
     /* A signed-in pilot's name: not an input but a label leading to the profile, where it is changed */
     .pilot-badge {
@@ -140,6 +145,7 @@
     .t-stick-zone {
       position: absolute; left: 0; bottom: 0; width: 42%; top: 72px;
     }
+    .t-aim-zone { position: absolute; left: 42%; right: 0; top: 0; bottom: 0; }
     .t-stick-base {
       position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%;
       border: 2px solid rgba(40, 215, 255, 0.45); background: rgba(7, 48, 61, 0.25); opacity: 0;
@@ -189,6 +195,10 @@
     <div class="panel">
       <div class="head">
         <h1 data-i18n="menu.title">ORBITA</h1>
+        <div class="event" id="event-countdown">
+          <div class="event-label" data-i18n="event.next"></div>
+          <div class="event-time" role="timer"></div>
+        </div>
         <div class="lang" role="group" aria-label="Language">
           <button data-lang="en">EN</button>
           <button data-lang="ru">RU</button>
@@ -218,6 +228,9 @@
       <fieldset class="volumes" id="menu-volumes">
         <legend data-i18n="menu.volume"></legend>
       </fieldset>
+      <fieldset class="volumes" id="menu-controls">
+        <legend data-i18n="menu.controls"></legend>
+      </fieldset>
       <p id="account" class="account hidden"><span id="account-name"></span> <a id="account-link" href="/login.html"></a> · <a href="/leaders.html" data-i18n="menu.leaders"></a><span id="logout-item" class="hidden"> · <a id="logout-link" href="/login.html" data-i18n="auth.logout"></a></span></p>
       <p id="menu-note" class="note"></p>
       <p id="vr-note" class="note"></p>
@@ -229,7 +242,7 @@
             <tr><td data-i18n="ctl.touch.slider"></td><td data-i18n="ctl.touch.slider.do"></td></tr>
             <tr><td data-i18n="ctl.touch.buttons"></td><td data-i18n="ctl.touch.buttons.do"></td></tr>
             <tr><td data-i18n="ctl.touch.drag"></td><td data-i18n="ctl.touch.drag.do"></td></tr>
-            <tr><td>☰ / ◎ / 🔇</td><td data-i18n="ctl.touch.top.do"></td></tr>
+            <tr><td>☰ / 🔇</td><td data-i18n="ctl.touch.top.do"></td></tr>
             <tr><td>⚙</td><td data-i18n="ctl.touch.settings.do"></td></tr>
           </table>
         </div>
@@ -258,11 +271,10 @@
             <tr><td>Z / X</td><td data-i18n="ctl.kb.zx.do"></td></tr>
             <tr><td data-i18n="ctl.kb.space"></td><td data-i18n="ctl.kb.space.do"></td></tr>
             <tr><td>Shift</td><td data-i18n="ctl.kb.boost.do"></td></tr>
-            <tr><td>C / R / Esc</td><td data-i18n="ctl.kb.cre.do"></td></tr>
+            <tr><td>C / Esc</td><td data-i18n="ctl.kb.cre.do"></td></tr>
             <tr><td>V</td><td data-i18n="ctl.kb.v.do"></td></tr>
             <tr><td>M</td><td data-i18n="ctl.kb.m.do"></td></tr>
             <tr><td>G / T</td><td data-i18n="ctl.kb.gt.do"></td></tr>
-            <tr><td data-i18n="ctl.kb.rmb"></td><td data-i18n="ctl.kb.rmb.do"></td></tr>
           </table>
         </div>
         <div class="no-touch">
@@ -272,7 +284,7 @@
             <tr><td data-i18n="ctl.joy.twist"></td><td data-i18n="ctl.joy.twist.do"></td></tr>
             <tr><td data-i18n="ctl.joy.lever"></td><td data-i18n="ctl.joy.lever.do"></td></tr>
             <tr><td data-i18n="ctl.joy.trigger"></td><td data-i18n="ctl.joy.trigger.do"></td></tr>
-            <tr><td>2 / 3 / 4</td><td data-i18n="ctl.joy.btn.do"></td></tr>
+            <tr><td>2 / 3</td><td data-i18n="ctl.joy.btn.do"></td></tr>
             <tr><td>5</td><td data-i18n="ctl.joy.b5.do"></td></tr>
           </table>
         </div>

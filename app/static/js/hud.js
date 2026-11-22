@@ -30,6 +30,7 @@ export class Hud {
     this.messages = [];
     this.timer = 0;
     this.labelTextures = new Map(); // name -> texture, for scanner labels
+    this.colorBlips = new Map(); // a pilot's radar colour -> { mat, rgb }
   }
 
   labelTexture(text) {
@@ -39,6 +40,17 @@ export class Hud {
       this.labelTextures.set(text, tex);
     }
     return tex;
+  }
+
+  colorBlip(color) {
+    let blip = this.colorBlips.get(color);
+    if (!blip) {
+      const mat = this.cockpit.scanner.blipMats[CONTACT.PLAYER].clone();
+      mat.color.set(color);
+      blip = { mat, rgb: [mat.color.r, mat.color.g, mat.color.b] };
+      this.colorBlips.set(color, blip);
+    }
+    return blip;
   }
 
   message(text, color = '#9ff3ff', time = 0) {
@@ -73,10 +85,11 @@ export class Hud {
       const x = _v.x * k * SCANNER_RX, z = _v.z * k * SCANNER_RZ, y = _v.y * k * SCANNER_HEIGHT;
       const b = blips[n];
       b.visible = true;
-      b.material = blipMats[c.type];
+      const own = c.color ? this.colorBlip(c.color) : null; // a pilot's colour on PvP maps
+      b.material = own?.mat ?? blipMats[c.type];
       b.position.set(x, y, z);
       pos.set([x, 0, z, x, y, z], n * 6);
-      const cc = CONTACT_COLORS[c.type];
+      const cc = own?.rgb ?? CONTACT_COLORS[c.type];
       col.set([cc[0] * 0.5, cc[1] * 0.5, cc[2] * 0.5, cc[0], cc[1], cc[2]], n * 6);
       n++;
       if (c.label && nl < SCANNER_MAX_LABELS) {

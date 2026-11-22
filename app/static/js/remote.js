@@ -1,7 +1,7 @@
 // Other players nearby (snapshots carry only ships within the server's area of interest): ships rebuilt
 // from server snapshots, drawn slightly in the past and interpolated between snapshots for smooth
 // motion, and their laser shots. Names are shown on the scanner (hud.js). On team maps a ship's edges
-// glow in its team's colour.
+// glow in its team's colour; on PvP maps pilots fly in the colours of their profiles (the roster has them).
 import * as THREE from 'three';
 import { glowTexture } from './textures.js';
 import { TEAM_COLORS } from './world.js';
@@ -21,6 +21,8 @@ export class RemotePlayers {
       color: 0x5f7f9c, metalness: 0.6, roughness: 0.4, flatShading: true, side: THREE.DoubleSide,
     });
     this.edgeMat = new THREE.LineBasicMaterial({ color: 0x55ddff });
+    this.colors = new Map(); // pilot id -> { ship, fire, radar } (PvP maps; each may be missing)
+    this.looks = new Map(); // colour -> materials made for it
     this.teamEdgeMats = TEAM_COLORS.map((color) => new THREE.LineBasicMaterial({ color }));
     this.engineMat = new THREE.SpriteMaterial({
       map: glowTexture('rgba(230,250,255,1)', 'rgba(60,200,255,0.6)', 64),
@@ -46,19 +48,55 @@ export class RemotePlayers {
 
   add(id, name, team = null) {
     const obj = new THREE.Group();
-    obj.add(new THREE.Mesh(this.geo, this.mat));
-    obj.add(new THREE.LineSegments(this.edges, team === null ? this.edgeMat : this.teamEdgeMats[team]));
-    for (const x of [-6, 6]) {
+    const hull = new THREE.Mesh(this.geo, this.mat);
+    const edges = new THREE.LineSegments(this.edges, team === null ? this.edgeMat : this.teamEdgeMats[team]);
+    obj.add(hull, edges);
+    const flames = [-6, 6].map((x) => {
       const s = new THREE.Sprite(this.engineMat);
       s.position.set(x, 0, 10);
       s.scale.setScalar(9);
       obj.add(s);
-    }
+      return s;
+    });
     obj.visible = false;
     this.scene.add(obj);
-    const r = { id, name, team, obj, buf: [], active: false };
+    const r = { id, name, team, obj, hull, edges, flames, buf: [], active: false };
     this.players.set(id, r);
+    this.paint(r);
     return r;
+  }
+
+  // Materials for a colour, shared by every ship wearing it
+  look(color) {
+    let l = this.looks.get(color);
+    if (!l) {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16)); // '#rrggbb'
+      l = {
+        hull: new THREE.MeshStandardMaterial({
+          color, emissive: color, emissiveIntensity: 0.3, metalness: 0.6, roughness: 0.4, flatShading: true, side: THREE.DoubleSide,
+        }),
+        edge: new THREE.LineBasicMaterial({ color }),
+        flame: new THREE.SpriteMaterial({
+          map: glowTexture('rgba(255,255,255,1)', `rgba(${r},${g},${b},0.75)`, 64),
+          transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        }),
+      };
+      this.looks.set(color, l);
+    }
+    return l;
+  }
+
+  paint(r) {
+    const c = this.colors.get(r.id);
+    r.hull.material = c?.ship ? this.look(c.ship).hull : this.mat;
+    r.edges.material = c?.ship ? this.look(c.ship).edge : r.team === null ? this.edgeMat : this.teamEdgeMats[r.team];
+    for (const s of r.flames) s.material = c?.fire ? this.look(c.fire).flame : this.engineMat;
+  }
+
+  // From the roster: [{ id, c: { ship, fire, radar } or null }, ...]
+  setColors(pilots) {
+    this.colors = new Map(pilots.filter((p) => p.c).map((p) => [p.id, p.c]));
+    for (const r of this.players.values()) this.paint(r);
   }
 
   remove(id) {
@@ -70,6 +108,7 @@ export class RemotePlayers {
 
   clear() {
     for (const id of [...this.players.keys()]) this.remove(id);
+    this.colors = new Map();
   }
 
   onSnapshot(list, now) {
@@ -91,10 +130,11 @@ export class RemotePlayers {
   }
 
   // Remote laser: a short-lived beam from the shooter's guns to where the shot ended.
-  showShot(from, to) {
+  showShot(from, to, id) {
     const b = this.beams.find((x) => x.t <= 0) ?? this.beams[0];
     const a = new THREE.Vector3().fromArray(from), e = new THREE.Vector3().fromArray(to);
     const dir = e.clone().sub(a);
+    b.mesh.material.color.set(this.colors.get(id)?.fire ?? 0xff5544);
     b.mesh.position.copy(a);
     b.mesh.quaternion.setFromUnitVectors(FORWARD, dir.clone().normalize());
     b.mesh.scale.set(1, 1, dir.length());

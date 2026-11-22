@@ -6,13 +6,15 @@ listed by counting ids.
 
 The signed-in owner of a profile changes the name there (POST /auth/name, app/auth.py) and the avatar
 (here). The page crops and scales the picture to AVATAR_SIZE; the server only accepts PNG, JPEG or WebP
-files (checked by their content) up to AVATAR_MAX_BYTES and keeps them in the avatars table.
+files (checked by their content) up to AVATAR_MAX_BYTES and keeps them in the avatars table. The owner also
+picks the colours of their ship, fire and radar mark on PvP maps (POST /api/colors), from PALETTE.
 """
 
 from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, Response
+from pydantic import BaseModel
 
 from app import auth, db
 
@@ -28,6 +30,22 @@ SIGNATURES = (  # file start -> type; WebP is RIFF....WEBP
     (b"\x89PNG\r\n\x1a\n", "image/png"),
     (b"\xff\xd8\xff", "image/jpeg"),
 )
+# Bright colours only, so that no pilot can hide against black space
+PALETTE = (
+    "#ff3b3b", "#ff8a1f", "#ffd21f", "#b6ff1f", "#1fffd2", "#55ddff",
+    "#5c9dff", "#a57bff", "#e14dff", "#ff4da6", "#ffffff",
+)
+
+
+class Colors(BaseModel):
+    """Each a colour of PALETTE, or None for the standard look."""
+    ship: str | None = None
+    fire: str | None = None
+    radar: str | None = None
+
+
+def colors_of(user) -> dict:
+    return {"ship": user["ship_color"], "fire": user["fire_color"], "radar": user["radar_color"]}
 
 
 def image_type(data: bytes) -> str | None:
@@ -59,7 +77,8 @@ async def get_profile(request: Request, id: str | None = None, name: str | None 
             raise HTTPException(401, "signed_out")
         id = me["public_id"]
     row = await pool().fetchrow(
-        "SELECT u.id, u.public_id, u.display_name, u.created_at, a.updated_at AS avatar_at, s.xp, s.flight_seconds,"
+        "SELECT u.id, u.public_id, u.display_name, u.created_at, u.ship_color, u.fire_color, u.radar_color,"
+        "  a.updated_at AS avatar_at, s.xp, s.flight_seconds,"
         "  s.pvp_kills, s.pirate_kills, s.asteroid_kills, s.deaths"
         " FROM users u LEFT JOIN avatars a ON a.user_id = u.id LEFT JOIN player_stats s ON s.user_id = u.id"
         " WHERE " + ("u.public_id = $1" if id is not None else "lower(u.display_name) = lower($1)"),
@@ -68,12 +87,14 @@ async def get_profile(request: Request, id: str | None = None, name: str | None 
     if not row:
         raise HTTPException(404, "not_found")
     pvp, pirates, deaths = row["pvp_kills"] or 0, row["pirate_kills"] or 0, row["deaths"] or 0
+    mine = bool(me) and me["id"] == row["id"]
     return {
         "id": str(row["public_id"]),
         "name": row["display_name"],
         "since": row["created_at"].isoformat(),
         "avatar": avatar_url(row["public_id"], row["avatar_at"]),
-        "me": bool(me) and me["id"] == row["id"],
+        "me": mine,
+        **({"colors": colors_of(row), "palette": PALETTE} if mine else {}),
         "stats": {
             "xp": row["xp"] or 0,
             "flightSeconds": round(row["flight_seconds"] or 0),
@@ -130,6 +151,20 @@ async def leaders(request: Request, by: Literal["xp", "flight", "wins"] = "xp"):
             )
             mine = leader(row) if row else None
     return {"by": by, "leaders": top, "me": mine, "signedIn": bool(me)}
+
+
+@router.post("/api/colors")
+async def set_colors(form: Colors, request: Request):
+    me = await auth.current_user(request)
+    if not me:
+        raise HTTPException(401, "signed_out")
+    if any(c is not None and c not in PALETTE for c in (form.ship, form.fire, form.radar)):
+        raise HTTPException(400, "bad_color")
+    await pool().execute(
+        "UPDATE users SET ship_color = $2, fire_color = $3, radar_color = $4 WHERE id = $1",
+        me["id"], form.ship, form.fire, form.radar,
+    )
+    return {"colors": form.model_dump()}
 
 
 @router.get("/avatar/{public_id}")

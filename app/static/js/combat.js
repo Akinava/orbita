@@ -263,6 +263,16 @@ class Lasers {
     });
   }
 
+  // The pilot's colour on PvP maps; null is the standard green
+  setColor(color) {
+    const glow = new THREE.Color(color ?? 0x33ff66);
+    const core = color ? glow.clone().lerp(new THREE.Color(0xffffff), 0.7) : new THREE.Color(0xeaffea);
+    for (const b of this.beams) {
+      b.mesh.material.color.copy(core);
+      b.mesh.children[0].material.color.copy(glow);
+    }
+  }
+
   fire(index, from, to) {
     const b = this.beams[index];
     const dir = _v.subVectors(to, from);

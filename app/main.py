@@ -297,6 +297,7 @@ async def multiplayer(ws: WebSocket, map_id: str = Query("", alias="map")):
     try:
         if user := await auth.current_user(ws):
             player.account, player.account_name = user["id"], user["display_name"]
+            player.colors = profile.colors_of(user)
     except Exception:
         log.exception("session check failed")
         checked = False

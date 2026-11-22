@@ -53,6 +53,16 @@
     .rename input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
     .label { display: block; font-size: 13px; opacity: 0.8; margin-top: 18px; }
 
+    .colors { margin-top: 18px; padding: 10px 12px 12px; border: 1px solid var(--line); border-radius: 10px; }
+    .colors legend { padding: 0 6px; font-size: 13px; color: var(--accent); }
+    .colors p { margin: 0 0 8px; font-size: 13px; opacity: 0.75; }
+    .color-row { display: grid; grid-template-columns: 5.5em 1fr; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; }
+    .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+    .swatches button { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid transparent; font-size: 13px; color: #e8fbff; }
+    .swatches button:hover:not(:disabled) { filter: brightness(1.15); }
+    .swatches button.std { background: #07303d; border-color: var(--line); }
+    .swatches button[aria-pressed=true] { border-color: #fff; box-shadow: 0 0 0 2px #02060c, 0 0 0 4px #fff; }
+
     .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 22px; }
     .stat { background: #041a22; border: 1px solid var(--line); border-radius: 10px; padding: 12px 8px; text-align: center; }
     .stat b { display: block; font-size: 24px; color: #fff; font-variant-numeric: tabular-nums; }
@@ -103,6 +113,14 @@
           <button type="submit" data-i18n="auth.renameSave"></button>
         </div>
       </form>
+
+      <fieldset id="colors" class="colors owner hidden">
+        <legend data-i18n="profile.colors"></legend>
+        <p data-i18n="profile.colorsHint"></p>
+        <div class="color-row"><span data-i18n="profile.colorShip"></span><div class="swatches" data-color="ship"></div></div>
+        <div class="color-row"><span data-i18n="profile.colorFire"></span><div class="swatches" data-color="fire"></div></div>
+        <div class="color-row"><span data-i18n="profile.colorRadar"></span><div class="swatches" data-color="radar"></div></div>
+      </fieldset>
 
       <div class="stats">
         <div class="stat"><b id="s-xp">0</b><span data-i18n="profile.xp"></span></div>

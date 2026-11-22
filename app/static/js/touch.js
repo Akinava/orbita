@@ -1,5 +1,6 @@
 // On-screen controls for phones and tablets: a floating stick under the left thumb (pitch and roll,
-// like the right VR stick), a throttle slider, fire / boost / stop buttons and a top bar.
+// like the right VR stick), aiming with the right finger, a throttle slider, fire / boost / stop buttons
+// and a top bar.
 // Input reads the same fields it builds from a keyboard or gamepad.
 import { t } from './i18n.js';
 
@@ -18,16 +19,17 @@ export class TouchControls {
     this.pitch = this.roll = 0;
     this.fire = this.boost = false;
     this.lever = null; // 0..1 when the slider moved since the last read
-    this.pending = new Set(); // one-shot buttons: allStop, recenter, talk, menu
+    this.aimX = this.aimY = 0; // px the right finger moved since the last read
+    this.pending = new Set(); // one-shot buttons: allStop, talk, menu
 
     this.el = document.createElement('div');
     this.el.id = 'touch';
     this.el.innerHTML = `
       <div class="t-stick-zone"><div class="t-stick-base"><div class="t-stick-knob"></div></div>
         <div class="t-stick-hint"></div></div>
+      <div class="t-aim-zone"></div>
       <div class="t-top">
         <button class="t-btn t-small" data-tap="menu">☰</button>
-        <button class="t-btn t-small" data-tap="recenter">◎</button>
         <button class="t-btn t-small t-mic" data-tap="talk"></button>
       </div>
       <div class="t-right">
@@ -48,6 +50,7 @@ export class TouchControls {
     this.fill = this.el.querySelector('.t-throttle-fill');
     this.throttleLabel = this.el.querySelector('.t-throttle-label');
     this.setupStick();
+    this.setupAim();
     this.setupThrottle();
     this.setupButtons();
     this.el.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -67,7 +70,7 @@ export class TouchControls {
   }
 
   release() {
-    this.pitch = this.roll = 0;
+    this.pitch = this.roll = this.aimX = this.aimY = 0;
     this.fire = this.boost = false;
     this.base.classList.remove('active');
     for (const b of this.el.querySelectorAll('.pressed')) b.classList.remove('pressed');
@@ -82,6 +85,33 @@ export class TouchControls {
     const l = this.lever;
     this.lever = null;
     return l;
+  }
+
+  takeAim() {
+    const drag = { x: this.aimX, y: this.aimY };
+    this.aimX = this.aimY = 0;
+    return drag;
+  }
+
+  // Aiming: a finger moving on the right part of the screen turns the ship. The FIRE button counts too,
+  // so the same thumb can hold fire and aim.
+  setupAim() {
+    const fingers = new Map(); // pointer id -> its last position
+    for (const el of [this.el.querySelector('.t-aim-zone'), this.el.querySelector('.t-fire')]) {
+      el.addEventListener('pointerdown', (e) => {
+        el.setPointerCapture(e.pointerId);
+        fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      });
+      el.addEventListener('pointermove', (e) => {
+        const last = fingers.get(e.pointerId);
+        if (!last) return;
+        this.aimX += e.clientX - last.x;
+        this.aimY += e.clientY - last.y;
+        last.x = e.clientX;
+        last.y = e.clientY;
+      });
+      for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, (e) => fingers.delete(e.pointerId));
+    }
   }
 
   // Floating stick: appears where the thumb lands. Up = nose up, as in most phone games.

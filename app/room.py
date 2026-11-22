@@ -58,6 +58,7 @@ class Player:
         self.name = f"Pilot-{pid}"
         self.account: int | None = None  # users.id when signed in
         self.account_name: str | None = None
+        self.colors: dict | None = None  # ship, fire and radar colours from the profile (shown on PvP maps)
         self.key = key
         self.hit_by: dict[int, float] = {}  # attacker id -> when they last hit us
         self.pos = [0.0, 0.0, 0.0]
@@ -190,9 +191,13 @@ class Room:
 
     def welcome(self, player: Player):
         return {
-            "type": "welcome", "id": player.id, "map": self.info(), "team": player.team,
+            "type": "welcome", "id": player.id, "map": self.info(), "team": player.team, "colors": self.colors_of(player),
             "match": self.match_state(), **self.world.welcome(),
         }
+
+    def colors_of(self, player: Player):
+        """The pilot's own colours apply on PvP maps only."""
+        return player.colors if self.mode.id == "pvp" else None
 
     # --- rules ------------------------------------------------------------------------------------
     def team_counts(self):
@@ -288,7 +293,8 @@ class Room:
             await self.broadcast({
                 "type": "roster",
                 "players": [
-                    {"id": p.id, "name": p.name, "v": p.voice, "tm": p.team, "r": p.ready} for p in self.players.values()
+                    {"id": p.id, "name": p.name, "v": p.voice, "tm": p.team, "r": p.ready, "c": self.colors_of(p)}
+                    for p in self.players.values()
                 ],
             })
         for p in self.players.values():

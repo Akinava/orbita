@@ -4,16 +4,19 @@
 // rounds on team maps; menu: the VR menu, js/vrmenu.js). While the VR menu is open (panel) the
 // controllers move through it instead (nav) and fly nothing.
 
+import { aim } from './sensitivity.js';
+
 const DEAD = 0.12;
 const deadzone = (v) => (Math.abs(v) < DEAD ? 0 : (v - Math.sign(v) * DEAD) / (1 - DEAD));
 const clamp1 = (v) => Math.max(-1, Math.min(1, v));
 const LEVER_STEP = 0.02; // the throttle lever takes over only when it actually moves
-const MOUSE_FULL = 600; // mouse speed (px/s) that gives full pitch or yaw
+const MOUSE_FULL = 600; // mouse speed (px/s) that gives full pitch or yaw at 100% sensitivity
+const FINGER_FULL = 260; // the same for the right finger on a touch screen
 
 // Flight joysticks (e.g. Thrustmaster T.Flight HOTAS X) have no standard mapping; browsers list their
 // axes in device order: 0 stick X, 1 stick Y, 2 throttle lever, 3 stick twist, 4 rudder rocker.
 const JOY = { roll: 0, pitch: 1, lever: 2, twist: 3, rocker: 4 };
-const JOY_BUTTONS = { fire: 0, boost: 1, allStop: 2, recenter: 3, talk: 4 };
+const JOY_BUTTONS = { fire: 0, boost: 1, allStop: 2, talk: 4 };
 
 export class Input {
   constructor(renderer, canvas, touch = null) {
@@ -25,7 +28,6 @@ export class Input {
     this.fire = this.boost = this.recenter = this.allStop = this.talk = this.ready = this.team = this.menu = false;
     this.panel = false; // set by the game while the VR menu is open
     this.nav = { up: false, down: false, left: false, right: false, press: false };
-    this.lookYaw = this.lookPitch = 0;
     this.invertPitch = false; // menu setting: swaps nose up / nose down for every control
     this.throttleLever = null; // 0..1 when a joystick lever moved this frame, otherwise null
     this.levers = new Map(); // gamepad index -> last lever position
@@ -46,7 +48,7 @@ export class Input {
     });
 
     // Mouse flight (PC): a click on the game captures the cursor (Esc releases it); moving the mouse
-    // turns the ship (pitch and yaw), the left button fires, the right one held looks around the cockpit.
+    // turns the ship (pitch and yaw), the left button fires.
     this.canvas = canvas;
     canvas.addEventListener('mousedown', (e) => {
       if (this.touch || renderer.xr.isPresenting || !this.enabled) return;
@@ -65,32 +67,8 @@ export class Input {
     });
     window.addEventListener('mousemove', (e) => {
       if (!this.captured()) return;
-      if (e.buttons & 2) {
-        this.lookYaw = Math.max(-2.2, Math.min(2.2, this.lookYaw - e.movementX * 0.004));
-        this.lookPitch = Math.max(-1.2, Math.min(1.2, this.lookPitch - e.movementY * 0.004));
-      } else {
-        this.mouseX += e.movementX;
-        this.mouseY += e.movementY;
-      }
-    });
-
-    // Dragging the view with a finger on the open part of a touch screen (the mouse flies, see above)
-    let dragging = null, lx = 0, ly = 0;
-    canvas.addEventListener('pointerdown', (e) => {
-      if (dragging !== null || e.pointerType === 'mouse') return;
-      dragging = e.pointerId;
-      lx = e.clientX;
-      ly = e.clientY;
-    });
-    const end = (e) => e.pointerId === dragging && (dragging = null);
-    window.addEventListener('pointerup', end);
-    window.addEventListener('pointercancel', end);
-    window.addEventListener('pointermove', (e) => {
-      if (e.pointerId !== dragging) return;
-      this.lookYaw = Math.max(-2.2, Math.min(2.2, this.lookYaw - (e.clientX - lx) * 0.004));
-      this.lookPitch = Math.max(-1.2, Math.min(1.2, this.lookPitch - (e.clientY - ly) * 0.004));
-      lx = e.clientX;
-      ly = e.clientY;
+      this.mouseX += e.movementX;
+      this.mouseY += e.movementY;
     });
   }
 
@@ -121,11 +99,11 @@ export class Input {
     let throttle = k('KeyZ') - k('KeyX');
     let fire = k('Space') === 1 || this.mouseFire;
     let boost = k('ShiftLeft') + k('ShiftRight') > 0;
-    let recenter = this.edge('kR', k('KeyR') === 1);
+    let recenter = false; // VR only: the seated view
     let allStop = this.edge('kC', k('KeyC') === 1);
     if (this.captured()) {
-      pitch -= clamp1(this.mouseY / dt / MOUSE_FULL); // mouse forward = nose up
-      yaw -= clamp1(this.mouseX / dt / MOUSE_FULL);
+      pitch -= clamp1((this.mouseY * aim.speed) / dt / MOUSE_FULL); // mouse forward = nose up
+      yaw -= clamp1((this.mouseX * aim.speed) / dt / MOUSE_FULL);
     }
     this.mouseX = this.mouseY = 0;
     let talk = this.edge('kV', k('KeyV') === 1); // toggles the voice chat microphone
@@ -139,10 +117,12 @@ export class Input {
     if (tc) {
       pitch += tc.pitch;
       roll += tc.roll;
+      const drag = tc.takeAim(); // the right finger turns the ship as the mouse does
+      pitch -= clamp1((drag.y * aim.speed) / dt / FINGER_FULL);
+      yaw -= clamp1((drag.x * aim.speed) / dt / FINGER_FULL);
       fire ||= tc.fire;
       boost ||= tc.boost;
       allStop ||= tc.take('allStop');
-      recenter ||= tc.take('recenter');
       talk ||= tc.take('talk');
       const l = tc.takeLever();
       if (l !== null) lever = l;
@@ -189,7 +169,6 @@ export class Input {
           fire ||= j.fire;
           boost ||= j.boost;
           allStop ||= j.allStop;
-          recenter ||= j.recenter;
           talk ||= j.talk;
           if (j.lever !== null) lever = j.lever;
           continue;
@@ -201,7 +180,6 @@ export class Input {
         fire ||= !!gp.buttons[7]?.pressed;
         boost ||= !!gp.buttons[6]?.pressed;
         allStop ||= this.edge('gX', !!gp.buttons[2]?.pressed);
-        recenter ||= this.edge('gY', !!gp.buttons[3]?.pressed);
         talk ||= this.edge('gB', !!gp.buttons[1]?.pressed);
         ready ||= this.edge('gA', !!gp.buttons[0]?.pressed);
         team ||= this.edge('gS', !!gp.buttons[8]?.pressed); // Back / Select
@@ -252,7 +230,6 @@ export class Input {
       fire: btn('fire'),
       boost: btn('boost'),
       allStop: this.edge(`${id}s`, btn('allStop')),
-      recenter: this.edge(`${id}r`, btn('recenter')),
       talk: this.edge(`${id}t`, btn('talk')),
       lever: null,
     };

@@ -67,7 +67,10 @@ function render() {
   $('#s-asteroids').textContent = number(s.asteroidKills);
   $('#s-ratio').textContent = s.losses ? (s.wins / s.losses).toFixed(2) : s.wins ? '∞' : '—';
   for (const el of document.querySelectorAll('.owner')) el.classList.toggle('hidden', !profile.me);
-  if (profile.me) $('#name-input').value = profile.name;
+  if (profile.me) {
+    $('#name-input').value = profile.name;
+    renderColors();
+  }
   document.title = `${profile.name} — ${t('profile.title')}`;
 }
 
@@ -92,6 +95,43 @@ async function load() {
 }
 
 // --- Owner's tools -------------------------------------------------------------------------------
+
+// Colours on PvP maps: bright ones from the server's palette, or the standard look (null). Saved at once.
+function renderColors() {
+  for (const box of document.querySelectorAll('[data-color]')) {
+    const kind = box.dataset.color;
+    const swatch = (color) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(profile.colors[kind] === color));
+      if (color) {
+        b.style.background = color;
+        b.setAttribute('aria-label', color);
+      } else {
+        b.className = 'std';
+        b.textContent = '∅';
+        b.title = t('profile.colorStandard');
+        b.setAttribute('aria-label', b.title);
+      }
+      b.addEventListener('click', () => saveColor(kind, color));
+      return b;
+    };
+    box.replaceChildren(swatch(null), ...profile.palette.map(swatch));
+  }
+}
+
+async function saveColor(kind, color) {
+  try {
+    const r = await api('/api/colors', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...profile.colors, [kind]: color }),
+    });
+    profile.colors = r.colors;
+    renderColors();
+    show('profile.colorsSaved', 'ok');
+  } catch (err) {
+    show(errorText(err.code));
+  }
+}
 
 // The middle square of the picture, scaled to AVATAR_SIZE and re-encoded (which also drops its metadata)
 async function cropAvatar(file) {
