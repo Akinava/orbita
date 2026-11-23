@@ -25,6 +25,9 @@
     .event { text-align: center; line-height: 1.2; min-width: 0; }
     .event-label { font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
     .event-time { font-size: 24px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .event-link { display: inline-block; font-size: 20px; font-weight: 800; color: var(--accent); text-decoration: underline; }
+    .event-link:hover { color: #fff; }
+    .event-link[hidden] { display: none; }
     @media (max-width: 620px) { .head { flex-wrap: wrap; } .event { order: 3; flex-basis: 100%; margin-top: 6px; } }
     .lang { display: flex; gap: 4px; }
     .lang button { font-size: 14px; padding: 6px 10px; background: transparent; opacity: 0.6; }

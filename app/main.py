@@ -198,6 +198,17 @@ async def list_maps(type: str):
     return maps[:LIST_SIZE]
 
 
+@app.get("/api/maps/busiest")
+async def busiest_map():
+    """The public map with the most pilots that has room for more, of any type (the event link)."""
+    async with httpx.AsyncClient(timeout=1) as client:
+        found = await asyncio.gather(*(shard_maps(client, s) for s in SHARDS))
+    maps = [m for shard in found for m in shard or [] if not m["private"] and 0 < m["players"] < m["max"]]
+    if not maps:
+        raise HTTPException(404, "not_found")
+    return max(maps, key=lambda m: m["players"])
+
+
 @app.get("/api/maps/{map_id}")
 async def map_info(map_id: str):
     """One map by its id, private ones included (a shared link)."""

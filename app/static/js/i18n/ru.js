@@ -4,6 +4,7 @@ export default {
   'page.title': 'Орбита — VR космический симулятор',
   'menu.title': 'ОРБИТА',
   'event.next': 'До следующего эвента',
+  'event.online': '>эвент идёт залетай<',
   'event.days': 'д',
   'menu.subtitle': 'Космический симулятор для WebXR',
   'menu.vrChecking': 'Проверка VR…',

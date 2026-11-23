@@ -4,6 +4,7 @@ export default {
   'page.title': 'Orbita — VR space sim',
   'menu.title': 'ORBITA',
   'event.next': 'Till the next event',
+  'event.online': '>event online<',
   'event.days': 'd',
   'menu.subtitle': 'An Orbita-inspired space sim for WebXR',
   'menu.vrChecking': 'Checking VR…',
